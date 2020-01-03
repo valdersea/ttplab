@@ -9,28 +9,28 @@ import ttp.TTPSolution;
  */
 public abstract class Evolution extends SearchHeuristic {
 
-  public Evolution() {
-    super();
-  }
+	public Evolution() {
+		super();
+	}
 
-  public Evolution(TTP1Instance ttp) {
-    super(ttp);
-  }
+	public Evolution(TTP1Instance ttp) {
+		super(ttp);
+	}
 
-  public static final int MAX_GEN = 1000000; // basically doesn't matter much...
-  public static final int MAX_IDLE_STEPS = 10000;
+	public static final int MAX_GEN = 1000000; // basically doesn't matter much...
+	public static final int MAX_IDLE_STEPS = 10000;
 
-  // GA params
-  public static final double MUTATION_RATE = .2;
-  public static final double MUTATION_STRENGTH_PP = .1;
+	// GA params
+	public static final double MUTATION_RATE = .2;
+	public static final double MUTATION_STRENGTH_PP = .1;
 
-  public static final double SELECTION_RATE = .75; // .50 | .80 | .85 | .60
-  public static final int POP_SIZE = 40; // 30, 40, ..
-  public static final int TOURNAMENT_SIZE = 6;
+	public static final double SELECTION_RATE = .75; // .50 | .80 | .85 | .60
+	public static final int POP_SIZE = 40; // 30, 40, ..
+	public static final int TOURNAMENT_SIZE = 6;
 
-  // MA params
-  public static final double LS_RATE = .2; // .1
+	// MA params
+	public static final double LS_RATE = .2; // .1
 
-  protected Population pop;
+	protected Population pop;
 
 }

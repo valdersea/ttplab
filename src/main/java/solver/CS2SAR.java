@@ -6,331 +6,319 @@ import ttp.TTPSolution;
 import utils.Deb;
 import utils.RandGen;
 
-
 /**
  * CS2SA algorithm
  *
- * A CoSolver implementation that uses 2-opt
- * for the TSP component and SA for the KP
- * component
+ * A CoSolver implementation that uses 2-opt for the TSP component and SA for
+ * the KP component
  *
  * Created by kyu on 4/7/15.
  */
 public class CS2SAR extends LocalSearch {
 
-  public double T_abs;       // absolute temperature
-  public double T0;           // initial temperature
-  public double alpha;       // cooling rate
-  public double trialFactor; // number of trials (per temperature)
+	public double T_abs; // absolute temperature
+	public double T0; // initial temperature
+	public double alpha; // cooling rate
+	public double trialFactor; // number of trials (per temperature)
 
+	public CS2SAR() {
+		super();
+		// use default config
+		SAConfig();
+	}
 
-  public CS2SAR() {
-    super();
-    // use default config
-    SAConfig();
-  }
+	public CS2SAR(TTP1Instance ttp) {
+		super(ttp);
+		// use default config
+		SAConfig();
+	}
 
-  public CS2SAR(TTP1Instance ttp) {
-    super(ttp);
-    // use default config
-    SAConfig();
-  }
+	// SA params config
+	// default config
+	void SAConfig() {
 
+		int nbItems = ttp.getNbItems();
 
-  // SA params config
-  // default config
-  void SAConfig() {
+		T_abs = 1;
+		T0 = 100.0;
+		alpha = 0.95;
 
-    int nbItems = ttp.getNbItems();
+		trialFactor = generateTFLinFitALT(nbItems);
+	}
 
-    T_abs = 1;
-    T0 = 100.0;
-    alpha = 0.95;
+	/**
+	 * simulated annealing
+	 *
+	 * deal with the KRP sub-problem this function applies a simple bit-flip
+	 */
+	public TTPSolution simulatedAnnealing(TTPSolution sol) {
 
-    trialFactor = generateTFLinFitALT(nbItems);
-  }
+		// copy initial solution into improved solution
+		TTPSolution sBest = sol.clone();
 
+		// TTP data
+		int nbCities = ttp.getNbCities();
+		int nbItems = ttp.getNbItems();
+		int[] A = ttp.getAvailability();
+		double maxSpeed = ttp.getMaxSpeed();
+		double minSpeed = ttp.getMinSpeed();
+		long capacity = ttp.getCapacity();
+		double C = (maxSpeed - minSpeed) / capacity;
+		double R = ttp.getRent();
 
-  /**
-   * simulated annealing
-   *
-   * deal with the KRP sub-problem
-   * this function applies a simple bit-flip
-   */
-  public TTPSolution simulatedAnnealing(TTPSolution sol) {
+		// initial solution data
+		int[] tour = sol.getTour();
+		int[] pickingPlan = sol.getPickingPlan();
 
-    // copy initial solution into improved solution
-    TTPSolution sBest = sol.clone();
+		// delta parameters
+		int deltaP, deltaW;
 
-    // TTP data
-    int nbCities = ttp.getNbCities();
-    int nbItems = ttp.getNbItems();
-    int[] A = ttp.getAvailability();
-    double maxSpeed = ttp.getMaxSpeed();
-    double minSpeed = ttp.getMinSpeed();
-    long capacity = ttp.getCapacity();
-    double C = (maxSpeed - minSpeed) / capacity;
-    double R = ttp.getRent();
+		// best solution
+		double GBest = sol.ob;
 
-    // initial solution data
-    int[] tour = sol.getTour();
-    int[] pickingPlan = sol.getPickingPlan();
+		// neighbor solution
+		long fp;
+		double ft, G;
+		long wc;
+		int origBF;
+		int k, r;
+		int nbIter = 0;
 
-    // delta parameters
-    int deltaP, deltaW;
+		double T = T0;
 
-    // best solution
-    double GBest = sol.ob;
+		long trials = Math.round(nbItems * trialFactor);
 
-    // neighbor solution
-    long fp;
-    double ft, G;
-    long wc;
-    int origBF;
-    int k, r;
-    int nbIter = 0;
+		if (debug)
+			Deb.echo(">>>> TRIAL FACTOR: " + trialFactor);
 
-    double T = T0;
+		// ===============================================
+		// start simulated annealing process
+		// ===============================================
+		do {
+			nbIter++;
 
-    long trials = Math.round(nbItems*trialFactor);
+			// cleanup and stop execution if interrupted
+			if (Thread.currentThread().isInterrupted())
+				break;
 
-    if (debug) Deb.echo(">>>> TRIAL FACTOR: "+trialFactor);
+			for (int u = 0; u < trials; u++) {
 
-    //===============================================
-    // start simulated annealing process
-    //===============================================
-    do {
-      nbIter++;
+				// browse items randomly
+				k = RandGen.randInt(0, nbItems - 1);
 
-      // cleanup and stop execution if interrupted
-      if (Thread.currentThread().isInterrupted()) break;
+				// check if new weight doesn't exceed knapsack capacity
+				if (pickingPlan[k] == 0 && ttp.weightOf(k) > sol.wend)
+					continue;
 
-      for (int u=0; u<trials; u++) {
+				// calculate deltaP and deltaW
+				if (pickingPlan[k] == 0) {
+					deltaP = ttp.profitOf(k);
+					deltaW = ttp.weightOf(k);
+				} else {
+					deltaP = -ttp.profitOf(k);
+					deltaW = -ttp.weightOf(k);
+				}
+				fp = sol.fp + deltaP;
 
-        // browse items randomly
-        k = RandGen.randInt(0, nbItems - 1);
+				// handle velocity constraint
+				// index where Bit-Flip happened
+				origBF = sol.mapCI[A[k] - 1];
+				// starting time
+				ft = origBF == 0 ? .0 : sol.timeAcc[origBF - 1];
+				// recalculate velocities from bit-flip city
+				// to recover objective value
+				for (r = origBF; r < nbCities; r++) {
+					wc = sol.weightAcc[r] + deltaW;
+					ft += ttp.distFor(tour[r] - 1, tour[(r + 1) % nbCities] - 1) / (maxSpeed - wc * C);
+				}
+				// compute recovered objective value
+				G = fp - ft * R;
 
-        // check if new weight doesn't exceed knapsack capacity
-        if (pickingPlan[k] == 0 && ttp.weightOf(k) > sol.wend) continue;
+				// =====================================
+				// update if improvement or
+				// Boltzmann condition satisfied
+				// =====================================
+				double mu = Math.random();
+				double energy_gap = G - GBest;
+				boolean acceptance = energy_gap > 0 || Math.exp(energy_gap / T) > mu;
+				if (acceptance) {
 
-        // calculate deltaP and deltaW
-        if (pickingPlan[k] == 0) {
-          deltaP = ttp.profitOf(k);
-          deltaW = ttp.weightOf(k);
-        } else {
-          deltaP = -ttp.profitOf(k);
-          deltaW = -ttp.weightOf(k);
-        }
-        fp = sol.fp + deltaP;
+					GBest = G;
 
-        // handle velocity constraint
-        // index where Bit-Flip happened
-        origBF = sol.mapCI[A[k] - 1];
-        // starting time
-        ft = origBF == 0 ? .0 : sol.timeAcc[origBF - 1];
-        // recalculate velocities from bit-flip city
-        // to recover objective value
-        for (r = origBF; r < nbCities; r++) {
-          wc = sol.weightAcc[r] + deltaW;
-          ft += ttp.distFor(tour[r] - 1, tour[(r + 1) % nbCities] - 1) / (maxSpeed - wc * C);
-        }
-        // compute recovered objective value
-        G = fp - ft * R;
+					// bit-flip
+					pickingPlan[k] = pickingPlan[k] != 0 ? 0 : A[k];
 
-        //=====================================
-        // update if improvement or
-        // Boltzmann condition satisfied
-        //=====================================
-        double mu = Math.random();
-        double energy_gap = G - GBest;
-        boolean acceptance = energy_gap > 0 || Math.exp(energy_gap / T) > mu;
-        if (acceptance) {
+					// ===========================================================
+					// recover accumulation vectors
+					// ===========================================================
+					if (pickingPlan[k] != 0) {
+						deltaP = ttp.profitOf(k);
+						deltaW = ttp.weightOf(k);
+					} else {
+						deltaP = -ttp.profitOf(k);
+						deltaW = -ttp.weightOf(k);
+					}
+					fp = sol.fp + deltaP;
+					origBF = sol.mapCI[A[k] - 1];
+					ft = origBF == 0 ? 0 : sol.timeAcc[origBF - 1];
+					for (r = origBF; r < nbCities; r++) {
+						// recalculate velocities from bit-flip city
+						wc = sol.weightAcc[r] + deltaW;
+						ft += ttp.distFor(tour[r] - 1, tour[(r + 1) % nbCities] - 1) / (maxSpeed - wc * C);
+						// recover wacc and tacc
+						sol.weightAcc[r] = wc;
+						sol.timeAcc[r] = ft;
+					}
+					G = fp - ft * R;
+					sol.ob = G;
+					sol.fp = fp;
+					sol.ft = ft;
+					sol.wend = capacity - sol.weightAcc[nbCities - 1];
+					// ===========================================================
 
-          GBest = G;
+				}
 
-          // bit-flip
-          pickingPlan[k] = pickingPlan[k] != 0 ? 0 : A[k];
+			}
 
-          //===========================================================
-          // recover accumulation vectors
-          //===========================================================
-          if (pickingPlan[k] != 0) {
-            deltaP = ttp.profitOf(k);
-            deltaW = ttp.weightOf(k);
-          } else {
-            deltaP = -ttp.profitOf(k);
-            deltaW = -ttp.weightOf(k);
-          }
-          fp = sol.fp + deltaP;
-          origBF = sol.mapCI[A[k] - 1];
-          ft = origBF == 0 ? 0 : sol.timeAcc[origBF - 1];
-          for (r = origBF; r < nbCities; r++) {
-            // recalculate velocities from bit-flip city
-            wc = sol.weightAcc[r] + deltaW;
-            ft += ttp.distFor(tour[r] - 1, tour[(r + 1) % nbCities] - 1) / (maxSpeed - wc * C);
-            // recover wacc and tacc
-            sol.weightAcc[r] = wc;
-            sol.timeAcc[r] = ft;
-          }
-          G = fp - ft * R;
-          sol.ob = G;
-          sol.fp = fp;
-          sol.ft = ft;
-          sol.wend = capacity - sol.weightAcc[nbCities - 1];
-          //===========================================================
+			// update best if improvement
+			if (sol.ob > sBest.ob) {
+				sBest = sol.clone();
+			}
 
-        }
+			if (this.debug) {
+				Deb.echo(">> KRP " + nbIter + ": ob=" + String.format("%.0f", sol.ob));
+			}
 
-      }
+			// cool down temperature
+			T = T * alpha;
 
-      // update best if improvement
-      if (sol.ob > sBest.ob) {
-        sBest = sol.clone();
-      }
+			// stop when temperature reach absolute value
+		} while (T > T_abs);
 
-      if (this.debug) {
-        Deb.echo(">> KRP " + nbIter + ": ob=" +
-          String.format("%.0f",sol.ob));
-      }
+		// in order to recover all history vector
+		ttp.objective(sBest);
 
-      // cool down temperature
-      T = T * alpha;
+		return sBest;
+	}
 
-      // stop when temperature reach absolute value
-    } while (T > T_abs);
+	@Override
+	public TTPSolution search() {
 
+		// ===============================================
+		// generate initial solution
+		// ===============================================
+		Constructive construct = new Constructive(ttp);
+		Initialization init = new Initialization(ttp);
+		if (s0 == null) {
+			// use Lin-Kernighan to initialize the tour
+			s0 = new TTPSolution(init.rlinkern(), construct.zerosPickingPlan()
+			// construct.randomPickingPlan()
+			);
 
-    // in order to recover all history vector
-    ttp.objective(sBest);
+			// pre-process the knapsack
+			// insert and eliminate items
+			if (ttp.getNbCities() < 30000)
+				s0 = insertAndEliminate(s0);
+			else
+				s0 = insertT2(s0);
 
-    return sBest;
-  }
+			// boosting
+			if (ttp.getNbCities() < 200) {
+				s0 = lsBitFlip(s0);
+			}
+		}
+		ttp.objective(s0);
+		if (this.debug) {
+			Deb.echo("STARTING SOL >> " + s0.ob);
+		}
+		// ===============================================
 
+		// copy initial solution into improved solution
+		TTPSolution sol = s0.clone();
 
-  @Override
-  public TTPSolution search() {
+		// best found solution
+		TTPSolution sBest = sol.clone();
 
-    //===============================================
-    // generate initial solution
-    //===============================================
-    Constructive construct = new Constructive(ttp);
-    Initialization init = new Initialization(ttp);
-    if (s0==null) {
-      // use Lin-Kernighan to initialize the tour
-      s0 = new TTPSolution(
-        init.rlinkern(),
-        construct.zerosPickingPlan()
-//        construct.randomPickingPlan()
-      );
+		// number of iterations
+		int nbIter = 0;
+		// improvement tag
+		int idleSteps = 0;
 
-      // pre-process the knapsack
-      // insert and eliminate items
-      if (ttp.getNbCities() < 30000) s0 = insertAndEliminate(s0);
-      else s0 = insertT2(s0);
+		// ===============================================
+		// start cosolver search
+		// ===============================================
+		do {
+			nbIter++;
 
-      // boosting
-      if (ttp.getNbCities() < 200) {
-        s0 = lsBitFlip(s0);
-      }
-    }
-    ttp.objective(s0);
-    if (this.debug) {
-      Deb.echo("STARTING SOL >> " + s0.ob);
-    }
-    //===============================================
+			// 2-opt heuristic on TSKP
+			sol = fast2opt(sol);
 
-    // copy initial solution into improved solution
-    TTPSolution sol = s0.clone();
+			// simple bit-flip on KRP
+			sol = simulatedAnnealing(sol);
 
-    // best found solution
-    TTPSolution sBest = sol.clone();
+			// tag idle step
+			if (sol.ob > sBest.ob) {
+				idleSteps = 0;
+				sBest = sol.clone();
+			} else {
+				idleSteps++;
+			}
 
-    // number of iterations
-    int nbIter = 0;
-    // improvement tag
-    int idleSteps = 0;
+			// restart if no improvement
+			if (idleSteps > 0 && !Thread.currentThread().isInterrupted()) {
+				if (debug) {
+					Deb.echo("===> RESTART");
+				}
+				idleSteps++;
+				// restart
+				sol = new TTPSolution(init.rlinkern(), construct.randomPickingPlan());
+			}
 
-    //===============================================
-    // start cosolver search
-    //===============================================
-    do {
-      nbIter++;
+			ttp.objective(sol);
 
-      // 2-opt heuristic on TSKP
-      sol = fast2opt(sol);
+			// debug msg
+			if (this.debug) {
+				Deb.echo("Best " + nbIter + ":");
+				Deb.echo("ob-best: " + sol.ob);
+				Deb.echo("wend   : " + sol.wend);
+				Deb.echo("---");
+			}
 
-      // simple bit-flip on KRP
-      sol = simulatedAnnealing(sol);
+			// stop when time expires
+		} while (!Thread.currentThread().isInterrupted());
+		// ===============================================
 
-      // tag idle step
-      if (sol.ob > sBest.ob) {
-        idleSteps = 0;
-        sBest = sol.clone();
-      }
-      else {
-        idleSteps++;
-      }
+		return sBest;
+	}
 
-      // restart if no improvement
-      if (idleSteps>0 && !Thread.currentThread().isInterrupted()) {
-        if (debug) {
-          Deb.echo("===> RESTART");
-        }
-        idleSteps++;
-        // restart
-        sol = new TTPSolution(
-          init.rlinkern(),
-          construct.randomPickingPlan()
-        );
-      }
+	public static double generateTFLinFitALT(int xi) {
+		// function yi = nit_linear(xi)
+		int i = -1;
+		int[] x = new int[] { 50, 204, 609, 1147, 8034, 38875, 105318, 253568, 338090 };
+		double[] y = new double[] { 1000, 500, 100, 50, 10, 1, 0.04, 0.03, 0.03 };
+		int n = y.length;
+		for (int k = 0; k < n - 1; k++) {
+			if (x[k] <= xi && xi < x[k + 1]) {
+				i = k;
+				break;
+			}
+		}
 
-      ttp.objective(sol);
+		// handle special cases
+		if (xi <= x[0]) {
+			return 57872.0;
+		}
+		if (xi >= x[n - 1]) {
+			return 0.03;
+		}
 
-      // debug msg
-      if (this.debug) {
-        Deb.echo("Best "+nbIter+":");
-        Deb.echo("ob-best: "+sol.ob);
-        Deb.echo("wend   : "+sol.wend);
-        Deb.echo("---");
-      }
+		// create linear interpolation
+		double m = (y[i] - y[i + 1]) / (x[i] - x[i + 1]);
+		double b = y[i] - m * x[i];
 
-      // stop when time expires
-    } while (!Thread.currentThread().isInterrupted());
-    //===============================================
+		double yi = m * xi + b;
 
-    return sBest;
-  }
-
-
-
-  public static double generateTFLinFitALT(int xi) {
-//    function yi = nit_linear(xi)
-    int i=-1;
-    int[] x = new int[]{50, 204, 609, 1147, 8034, 38875, 105318, 253568, 338090};
-    double[] y = new double[]{1000, 500,  100,   50,    10,     1,   0.04,  0.03, 0.03};
-    int n=y.length;
-    for (int k=0; k<n-1; k++) {
-      if (x[k] <= xi && xi < x[k + 1]) {
-        i = k;
-        break;
-      }
-    }
-
-    // handle special cases
-    if (xi <= x[0]) {
-      return 57872.0;
-    }
-    if (xi >= x[n-1]) {
-      return 0.03;
-    }
-
-    // create linear interpolation
-    double m = ( y[i]-y[i+1] ) / ( x[i]-x[i+1] );
-    double b = y[i]-m*x[i];
-
-    double yi = m*xi + b;
-
-    return yi;
-  }
+		return yi;
+	}
 
 }

@@ -10,23 +10,22 @@ import java.util.Properties;
  */
 public class ConfigHelper {
 
-  public static String getProperty(String name) {
-    // get datasets folder path
-    Properties prop = new Properties();
-    InputStream input;
-    String ttpData = null;
-    try {
-      input = new FileInputStream("config.properties");
+	public static String getProperty(String name) { // get datasets folder path
+		Properties prop = new Properties();
+		InputStream input;
+		String ttpData = null;
+		try {
+			input = new FileInputStream("config.properties");
 
-      // load a properties file
-      prop.load(input);
+			// load a properties file
+			prop.load(input);
 
-      // get the property value and print it out
-      ttpData = prop.getProperty(name);
+			// get the property value and print it out
+			ttpData = prop.getProperty(name);
 
-    } catch (IOException ex) {
-      ex.printStackTrace();
-    }
-    return ttpData;
-  }
+		} catch (IOException ex) {
+			ex.printStackTrace();
+		}
+		return ttpData;
+	}
 }

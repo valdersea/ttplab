@@ -19,108 +19,108 @@ import java.util.concurrent.*;
  */
 public class Experiment1 {
 
-  public static void main(String[] args) {
+	public static void main(String[] args) {
 
-    if (args.length < 2) {
-      args = new String[]{"eil76_n75_bounded-strongly-corr_01.ttp", "cs2sa"};
-    }
+		if (args.length < 2) {
+			args = new String[] { "eil76_n75_bounded-strongly-corr_01.ttp", "cs2sa" };
+		}
 
-    String[] spl = args[0].split("_",2);
+		String[] spl = args[0].split("_", 2);
 
-    // TTP instance name
-    final String inst = args[0];
+		// TTP instance name
+		final String inst = args[0];
 
-    // algorithm name
-    final String algoName = args[1];
+		// algorithm name
+		final String algoName = args[1];
 
-    // output file
-    final String outputFile = "./output/CS2SA-experiment.csv";
+		// output file
+		final String outputFile = "./output/CS2SA-experiment.csv";
 
-    // runtime limit
-    long runtimeLimit = 600;
+		// runtime limit
+		long runtimeLimit = 600;
 
-    // TTP instance
-    final TTP1Instance ttp = new TTP1Instance(spl[0]+"-ttp/"+inst);
+		// TTP instance
+		final TTP1Instance ttp = new TTP1Instance(spl[0] + "-ttp/" + inst);
 
-    /* algorithm to run */
-    final SearchHeuristic algo;
-    switch (algoName) {
-      case "cs2b":
-        algo = new CS2B(ttp);
-        break;
-      case "cs2sa":
-        algo = new CS2SA(ttp);
-        break;
-      case "ma2b":
-        algo = new MA2B(ttp);
-        break;
-      default:
-        algo = new CS2SA(ttp);
-    }
+		/* algorithm to run */
+		final SearchHeuristic algo;
+		switch (algoName) {
+		case "cs2b":
+			algo = new CS2B(ttp);
+			break;
+		case "cs2sa":
+			algo = new CS2SA(ttp);
+			break;
+		case "ma2b":
+			algo = new MA2B(ttp);
+			break;
+		default:
+			algo = new CS2SA(ttp);
+		}
 
+		// runnable class
+		class TTPRunnable implements Runnable {
 
-    // runnable class
-    class TTPRunnable implements Runnable {
+			String resultLine;
 
-      String resultLine;
+			@Override
+			public void run() {
 
-      @Override
-      public void run() {
+				/* start search & measure runtime */
+				long startTime, stopTime;
+				long exTime;
+				startTime = System.currentTimeMillis();
 
+				TTPSolution sx = algo.search();
 
-        /* start search & measure runtime */
-        long startTime, stopTime;
-        long exTime;
-        startTime = System.currentTimeMillis();
+				stopTime = System.currentTimeMillis();
+				exTime = stopTime - startTime;
 
-        TTPSolution sx = algo.search();
+				/* print result */
+				resultLine = inst + " " + Math.round(sx.ob) + " " + (exTime / 1000.0);
 
-        stopTime = System.currentTimeMillis();
-        exTime = stopTime - startTime;
+			}
+		}
+		;
 
-        /* print result */
-        resultLine = inst + " " + Math.round(sx.ob) + " " + (exTime/1000.0);
+		// my TTP runnable
+		TTPRunnable ttprun = new TTPRunnable();
+		ExecutorService executor = Executors.newFixedThreadPool(4);
+		Future<?> future = executor.submit(ttprun);
+		executor.shutdown(); // reject all further submissions
 
-      }
-    };
+		// limit execution time to 600 seconds
+		try {
+			future.get(runtimeLimit, TimeUnit.SECONDS); // wait X seconds to finish
+		} catch (InterruptedException e) {
+			System.out.println("job was interrupted");
+		} catch (ExecutionException e) {
+			System.out.println("caught exception: " + e.getCause());
+		} catch (TimeoutException e) {
+			future.cancel(true);
+			System.out.println("/!\\ Timeout");
+		}
 
-    // my TTP runnable
-    TTPRunnable ttprun = new TTPRunnable();
-    ExecutorService executor = Executors.newFixedThreadPool(4);
-    Future<?> future = executor.submit(ttprun);
-    executor.shutdown();  // reject all further submissions
+		// wait for execution to be done
+		try {
+			executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
 
-    // limit execution time to 600 seconds
-    try {
-      future.get(runtimeLimit, TimeUnit.SECONDS);  // wait X seconds to finish
-    } catch (InterruptedException e) {
-      System.out.println("job was interrupted");
-    } catch (ExecutionException e) {
-      System.out.println("caught exception: " + e.getCause());
-    } catch (TimeoutException e) {
-      future.cancel(true);
-      System.out.println("/!\\ Timeout");
-    }
+		// print results
+		Deb.echo(ttprun.resultLine);
 
-    // wait for execution to be done
-    try {
-      executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-    } catch (InterruptedException e) {
-      e.printStackTrace();
-    }
+		// log results into text file
+		try {
+			File file = new File(outputFile);
+			if (!file.exists())
+				file.createNewFile();
+			Files.write(Paths.get(outputFile), (ttprun.resultLine + "\n").getBytes(), StandardOpenOption.APPEND);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 
-    // print results
-    Deb.echo(ttprun.resultLine);
-
-    // log results into text file
-    try {
-      File file = new File(outputFile);
-      if (!file.exists()) file.createNewFile();
-      Files.write(Paths.get(outputFile), (ttprun.resultLine + "\n").getBytes(), StandardOpenOption.APPEND);
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
-
-  }
+	}
 
 }
