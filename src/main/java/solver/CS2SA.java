@@ -32,6 +32,12 @@ public class CS2SA extends LocalSearch {
 		SAConfig();
 	}
 
+	public CS2SA(TTP1Instance ttp, double T0) {
+		super(ttp);
+		// use exp config(test T0)
+		SAConfig(T0);
+	}
+
 	// SA params config
 	// default config
 	void SAConfig() {
@@ -45,6 +51,16 @@ public class CS2SA extends LocalSearch {
 		T0 = 98;
 
 		trialFactor = generateTFLinFit(nbItems);
+	}
+
+	// SA params config
+	// T_abs, alpha, numbers of trials fixed
+	void SAConfig(double T0) {
+
+		T_abs = 1;
+		alpha = 0.95;
+
+		this.T0 = T0;
 	}
 
 	/**
@@ -89,8 +105,166 @@ public class CS2SA extends LocalSearch {
 
 		long trials = Math.round(nbItems * trialFactor);
 
-		if (debug)
+		if (debug) {
 			Deb.echo(">>>> TRIAL FACTOR: " + trialFactor);
+			Deb.echo(">>>> TRIALS:       " + trials);
+		}
+
+		// ===============================================
+		// start simulated annealing process
+		// ===============================================
+		do {
+			nbIter++;
+
+			// cleanup and stop execution if interrupted
+			if (Thread.currentThread().isInterrupted())
+				break;
+
+			for (int u = 0; u < trials; u++) {
+
+				// browse items randomly
+				k = RandGen.randInt(0, nbItems - 1);
+
+				// check if new weight doesn't exceed knapsack capacity
+				if (pickingPlan[k] == 0 && ttp.weightOf(k) > sol.wend)
+					continue;
+
+				// calculate deltaP and deltaW
+				if (pickingPlan[k] == 0) {
+					deltaP = ttp.profitOf(k);
+					deltaW = ttp.weightOf(k);
+				} else {
+					deltaP = -ttp.profitOf(k);
+					deltaW = -ttp.weightOf(k);
+				}
+				fp = sol.fp + deltaP;
+
+				// handle velocity constraint
+				// index where Bit-Flip happened
+				origBF = sol.mapCI[A[k] - 1];
+				// starting time
+				ft = origBF == 0 ? .0 : sol.timeAcc[origBF - 1];
+				// recalculate velocities from bit-flip city
+				// to recover objective value
+				for (r = origBF; r < nbCities; r++) {
+					wc = sol.weightAcc[r] + deltaW;
+					ft += ttp.distFor(tour[r] - 1, tour[(r + 1) % nbCities] - 1) / (maxSpeed - wc * C);
+				}
+				// compute recovered objective value
+				G = fp - ft * R;
+
+				// =====================================
+				// update if improvement or
+				// Boltzmann condition satisfied
+				// =====================================
+				double mu = Math.random();
+				double energy_gap = G - GBest;
+				boolean acceptance = energy_gap > 0 || Math.exp(energy_gap / T) > mu;
+				if (acceptance) {
+
+					GBest = G;
+
+					// bit-flip
+					pickingPlan[k] = pickingPlan[k] != 0 ? 0 : A[k];
+
+					// ===========================================================
+					// recover accumulation vectors
+					// ===========================================================
+					if (pickingPlan[k] != 0) {
+						deltaP = ttp.profitOf(k);
+						deltaW = ttp.weightOf(k);
+					} else {
+						deltaP = -ttp.profitOf(k);
+						deltaW = -ttp.weightOf(k);
+					}
+					fp = sol.fp + deltaP;
+					origBF = sol.mapCI[A[k] - 1];
+					ft = origBF == 0 ? 0 : sol.timeAcc[origBF - 1];
+					for (r = origBF; r < nbCities; r++) {
+						// recalculate velocities from bit-flip city
+						wc = sol.weightAcc[r] + deltaW;
+						ft += ttp.distFor(tour[r] - 1, tour[(r + 1) % nbCities] - 1) / (maxSpeed - wc * C);
+						// recover wacc and tacc
+						sol.weightAcc[r] = wc;
+						sol.timeAcc[r] = ft;
+					}
+					G = fp - ft * R;
+					sol.ob = G;
+					sol.fp = fp;
+					sol.ft = ft;
+					sol.wend = capacity - sol.weightAcc[nbCities - 1];
+					// ===========================================================
+
+				}
+
+			}
+
+			// update best if improvement
+			if (sol.ob > sBest.ob) {
+				sBest = sol.clone();
+			}
+
+			if (this.debug) {
+				Deb.echo(">> KRP " + nbIter + ": ob=" + String.format("%.0f", sol.ob));
+			}
+
+			// cool down temperature
+			T = T * alpha;
+
+			// stop when temperature reach absolute value
+		} while (T > T_abs);
+
+		// in order to recover all history vector
+		ttp.objective(sBest);
+
+		return sBest;
+	}
+
+	/**
+	 * simulated annealing
+	 *
+	 * deal with the KRP sub-problem this function applies a simple bit-flip
+	 */
+	public TTPSolution simulatedAnnealingWithFixTRAILS(TTPSolution sol) {
+
+		// copy initial solution into improved solution
+		TTPSolution sBest = sol.clone();
+
+		// TTP data
+		int nbCities = ttp.getNbCities();
+		int nbItems = ttp.getNbItems();
+		int[] A = ttp.getAvailability();
+		double maxSpeed = ttp.getMaxSpeed();
+		double minSpeed = ttp.getMinSpeed();
+		long capacity = ttp.getCapacity();
+		double C = (maxSpeed - minSpeed) / capacity;
+		double R = ttp.getRent();
+
+		// initial solution data
+		int[] tour = sol.getTour();
+		int[] pickingPlan = sol.getPickingPlan();
+
+		// delta parameters
+		int deltaP, deltaW;
+
+		// best solution
+		double GBest = sol.ob;
+
+		// neighbor solution
+		long fp;
+		double ft, G;
+		long wc;
+		int origBF;
+		int k, r;
+		int nbIter = 0;
+
+		double T = T0;
+
+		// long trials = Math.round(nbItems * trialFactor);
+		long trials = 5000;
+
+		if (debug)
+			Deb.echo(">>>> TRIALS       " + trials);
 
 		// ===============================================
 		// start simulated annealing process
@@ -251,7 +425,8 @@ public class CS2SA extends LocalSearch {
 			// if (true) break;
 
 			// simple bit-flip on KRP
-			sol = simulatedAnnealing(sol);
+			// sol = simulatedAnnealing(sol);
+			sol = simulatedAnnealingWithFixTRAILS(sol);
 
 			// update best if improvement
 			if (sol.ob > GBest) {

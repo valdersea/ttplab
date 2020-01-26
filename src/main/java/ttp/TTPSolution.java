@@ -19,7 +19,12 @@ import java.util.Arrays;
  */
 public class TTPSolution {
 
+	// 旅行路线 tour[i]表示第(i+1)步走到的城市(值为真实编号)
 	private int[] tour;
+
+	// 背包选择方案 pickingPlan[i]表示编号(i+1)物品的选择情况
+	// 没有选择，值为0
+	// 选择，值为物品拾取的城市编号
 	private int[] pickingPlan;
 
 	public long fp;
@@ -36,6 +41,7 @@ public class TTPSolution {
 	// weight record at each iteration
 	public long[] weightRec;
 	// tour mapper
+	// 编号(i+1)城市在第(mapCI[i]+1)步到达
 	public int[] mapCI;
 
 	private void initSolution(int[] tour, int[] pickingPlan) {

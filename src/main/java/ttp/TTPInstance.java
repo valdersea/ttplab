@@ -26,15 +26,26 @@ public abstract class TTPInstance {
 	protected double minSpeed;
 	protected double maxSpeed;
 	protected String edgeWeightType;
+
+	// 城市坐标集合 coordinates[i]表示编号(i+1)城市的坐标
 	protected CityCoordinates[] coordinates;
+
+	// 城市距离矩阵 dist[i][j]表示编号(i+1)城市与编号(j+1)城市的距离
 	protected long[][] dist = null;
+
+	// 物品分布 编号(i+1)物品可在编号(availabilty[i])城市取得
 	protected int[] availability;
+
+	// 物品价值 profits[i]表示编号(i+1)物品的价值
 	protected int[] profits;
+
+	// 物品重量 weights[i]表示编号(i+1)物品的重量
 	protected int[] weights;
 
 	protected File ttpFile;
 
 	// item clusters per city
+	// clusters[i]表示分布在编号(i+1)城市的物品(值+1方为物品真实编号)
 	protected ArrayList<Integer>[] clusters;
 
 	@Override
