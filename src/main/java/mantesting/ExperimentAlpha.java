@@ -16,9 +16,9 @@ import java.nio.file.StandardOpenOption;
 import java.util.concurrent.*;
 
 /**
- * test T0
+ * test alpha
  */
-public class ExperimentT0 {
+public class ExperimentAlpha {
 
     public static void main(String[] args) {
 
@@ -26,14 +26,12 @@ public class ExperimentT0 {
         String[] exp_list = { "eil76_n75_bounded-strongly-corr_01.ttp", "eil76_n225_uncorr_01.ttp",
                 "eil76_n75_uncorr-similar-weights_01.ttp" };
 
-        // T0 test list
-        double[] T0_list = { 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130, 135, 140, 145,
-                150, 155, 160, 165, 170, 175, 180, 185, 190, 195, 200, 205, 210, 215, 220, 225, 230, 235, 240, 245, 250,
-                255, 260, 265, 270, 275, 280, 285, 290, 295, 300 };
+        // alpha test list
+        double[] alpha_list = { 0.9, 0.905, 0.91, 0.915, 0.92, 0.925, 0.93, 0.935, 0.94, 0.945, 0.95, 0.955, 0.96,
+                0.965, 0.97, 0.975, 0.985, 0.99, 0.995 };
 
-        // alpha set as 0.95
-        // or other value between 0.9 and 1(cannot be 1)
-        double alpha = 0.95;
+        // T0 set as 100
+        double T0 = 100;
 
         // test 20 times
         // result array
@@ -49,7 +47,7 @@ public class ExperimentT0 {
             String[] spl = exp.split("_", 2);
 
             // output file
-            final String outputFile = "./output/CS2SA-T0-experiment.csv";
+            final String outputFile = "./output/CS2SA-alpha-experiment.csv";
 
             // runtime limit(big enough to run)
             long runtimeLimit = Long.MAX_VALUE;
@@ -58,9 +56,9 @@ public class ExperimentT0 {
             final TTP1Instance ttp = new TTP1Instance(spl[0] + "-ttp/" + inst);
 
             // test every T0
-            for (int T0_iter = 0; T0_iter < T0_list.length; T0_iter++) {
-                double t = T0_list[T0_iter];
-                final SearchHeuristic algo = new CS2SA(ttp, t, alpha);
+            for (int alpha_iter = 0; alpha_iter < alpha_list.length; alpha_iter++) {
+                double a = alpha_list[alpha_iter];
+                final SearchHeuristic algo = new CS2SA(ttp, T0, a);
 
                 // runnable class
                 class TTPRunnable implements Runnable {
@@ -89,7 +87,7 @@ public class ExperimentT0 {
                         }
 
                         /* print result */
-                        resultLine = inst + " " + t + " " + Math.round(CalAvg.calculateAvg(ob_result)) + " "
+                        resultLine = inst + " " + a + " " + Math.round(CalAvg.calculateAvg(ob_result)) + " "
                                 + (CalAvg.calculateAvg(exTime_result));
 
                     }
