@@ -32,10 +32,10 @@ public class CS2SA extends LocalSearch {
 		SAConfig();
 	}
 
-	public CS2SA(TTP1Instance ttp, double T0) {
+	public CS2SA(TTP1Instance ttp, double T0, double alpha) {
 		super(ttp);
-		// use exp config(test T0)
-		SAConfig(T0);
+		// use exp config(test T0,alpha)
+		SAConfig(T0, alpha);
 	}
 
 	// SA params config
@@ -54,12 +54,13 @@ public class CS2SA extends LocalSearch {
 	}
 
 	// SA params config
-	// T_abs, alpha, numbers of trials fixed
-	void SAConfig(double T0) {
+	// T_abs, numbers of trials fixed
+	// T0, alpha are manually set
+	void SAConfig(double T0, double alpha) {
 
 		T_abs = 1;
-		alpha = 0.95;
 
+		this.alpha = alpha;
 		this.T0 = T0;
 	}
 

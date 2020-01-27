@@ -31,6 +31,10 @@ public class ExperimentT0 {
                 150, 155, 160, 165, 170, 175, 180, 185, 190, 195, 200, 205, 210, 215, 220, 225, 230, 235, 240, 245, 250,
                 255, 260, 265, 270, 275, 280, 285, 290, 295, 300 };
 
+        // alpha set as 0.95
+        // or other value between 0.9 and 1(cannot be 1)
+        double alpha = 0.95;
+
         // test 20 times
         // result array
         long[] ob_result = new long[20];
@@ -56,7 +60,7 @@ public class ExperimentT0 {
             // test every T0
             for (int T0_iter = 0; T0_iter < T0_list.length; T0_iter++) {
                 double t = T0_list[T0_iter];
-                final SearchHeuristic algo = new CS2SA(ttp, t);
+                final SearchHeuristic algo = new CS2SA(ttp, t, alpha);
 
                 // runnable class
                 class TTPRunnable implements Runnable {
